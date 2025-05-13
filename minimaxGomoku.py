@@ -76,18 +76,6 @@ def utility(state):
     else:
         return evaluate_board(board)
 
-def evaluate_window(window, player):
-    opponent = 3 - player
-    if window.count(player) == 5:
-        return 100
-    elif window.count(player) == 4 and window.count(0) == 1:
-        return 50
-    elif window.count(player) == 3 and window.count(0) == 2:
-        return 10
-    elif window.count(opponent) == 4 and window.count(0) == 1:
-        return -80
-    return 0
-
 def evaluate_board(board):
     score = 0
     center = [(7, 7), (7, 8), (8, 7), (8, 8)]
@@ -149,31 +137,118 @@ def find_best_move(board, depth=3):
     move, _ = minimax([2, board], depth)
     return move if move else random.choice(get_possible_moves(board))
 
+##############################################################################################
+def evaluate_window(window, player):
+    opponent = 3 - player
+    if window.count(player) == 5:
+        return 100000  # direct win
+    elif window.count(player) == 4 and window.count(0) == 1:
+        return 10000   # strong chance to win
+    elif window.count(player) == 3 and window.count(0) == 2:
+        return 1000
+    elif window.count(player) == 2 and window.count(0) == 3:
+        return 100
+    elif window.count(opponent) == 4 and window.count(0) == 1:
+        return -10000  # block opponent
+    else:
+        return 0
 
-# Our Game
+
+def alphabeta(state, depth, alpha, beta, maximizing_player):
+    player, board = state
+
+    if is_terminal(state) or depth == 0:
+        return None, utility(state)
+
+    best_move = None
+
+    moves = get_possible_moves(board)
+
+    if maximizing_player:
+        max_eval = -math.inf
+        for row, col in moves:
+            new_board = [r[:] for r in board]
+            new_board[row][col] = player
+            _, eval = alphabeta([other_player(player), new_board], depth - 1, alpha, beta, False)
+            if eval > max_eval:
+                max_eval = eval
+                best_move = (row, col)
+            alpha = max(alpha, eval)
+            if beta <= alpha:
+                break
+        return best_move, max_eval
+    else:
+        min_eval = math.inf
+        for row, col in moves:
+            new_board = [r[:] for r in board]
+            new_board[row][col] = player
+            _, eval = alphabeta([other_player(player), new_board], depth - 1, alpha, beta, True)
+            if eval < min_eval:
+                min_eval = eval
+                best_move = (row, col)
+            beta = min(beta, eval)
+            if beta <= alpha:
+                break
+        return best_move, min_eval
+
+def find_best_move_minimax(board, depth=3):
+    move, _ = minimax([2, board], depth)
+    return move if move else random.choice(get_possible_moves(board))
+
+def find_best_move_alphabeta(board, depth=3):
+    move, _ = alphabeta([1, board], depth, -math.inf, math.inf, False)
+    return move if move else random.choice(get_possible_moves(board))
+
+import time
+
 def main():
-    print("GOMOKU <---> Five in a Row")
-    print("You are X (1), AI is O (2)")
+    print("GOMOKU Game Mode")
+    print("1. Human vs AI")
+    print("2. AI vs AI")
+    
+    while True:
+        choice = input("Select mode (1 or 2): ")
+        if choice in ['1', '2']:
+            break
+        else:
+            print("Invalid input. Please choose 1 or 2.")
 
     board = [[0 for _ in range(15)] for _ in range(15)]
-    current_player = 1
+    current_player = 1  # Player 1 always starts (X)
+
+    if choice == '1':
+        print("You are X (1), AI is O (2)")
+    else:
+        print("AI 1 (Alpha-Beta - X) vs AI 2 (Minimax - O)")
 
     while True:
         print_board(board)
 
-        if current_player == 1:
-            row, col = get_move(current_player, board)
+        if choice == '1':
+            if current_player == 1:
+                row, col = get_move(current_player, board)  # human move
+            else:
+                print("AI is thinking....")
+                start_time = time.time()
+                row, col = find_best_move(board, depth=3)  # aI move (minimax)
+                print(f"The AI played at ({row}, {col}) in {time.time() - start_time:.1f}s")
         else:
-            print("AI is thinking....")
+            print(f"Player {'O' if current_player == 2 else 'X'} thinking...")
             start_time = time.time()
-            row, col = find_best_move(board, depth=3)
-            print(f"The AI played at ({row}, {col}) in {time.time() - start_time:.1f}s")
+            if current_player == 2:
+                row, col = find_best_move_minimax(board, depth=3)
+            else:
+                row, col = find_best_move_alphabeta(board, depth=3)
+            print(f"Played at ({row}, {col}) in {time.time() - start_time:.2f} seconds")
 
         board[row][col] = current_player
 
         if check_winner(board, row, col, current_player):
             print_board(board)
-            print("\nAI wins!" if current_player == 2 else "\nCongratulations! You win!")
+            if choice == '1':
+                print("\nAI wins!" if current_player == 2 else "\nCongratulations! You win!")
+            else:
+                print(f"\nAI {'Minimax (O)' if current_player == 2 else 'Alpha-Beta (X)'} wins!")
             break
 
         if all(board[i][j] != 0 for i in range(15) for j in range(15)):
@@ -182,6 +257,10 @@ def main():
             break
 
         current_player = other_player(current_player)
+
+
+##############################################################################################
+
 
 if __name__ == "__main__":
     main()
